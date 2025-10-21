@@ -1,0 +1,202 @@
+import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabaseClient'
+import { generateAIResponse } from '../lib/openrouter'
+import { stack } from '../lib/stackAuth'
+
+export default function DoveableAI() {
+  const [user, setUser] = useState(null)
+  const [projects, setProjects] = useState([])
+  const [prompt, setPrompt] = useState('')
+  const [aiResponse, setAiResponse] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  // Check if user is already logged in
+  useEffect(() => {
+    checkUser()
+  }, [])
+
+  const checkUser = async () => {
+    try {
+      const currentUser = await stack.getCurrentUser()
+      if (currentUser) {
+        setUser(currentUser)
+        loadUserProjects(currentUser.id)
+      }
+    } catch (error) {
+      console.log('No user logged in')
+    }
+  }
+
+  // Load user projects from Supabase
+  const loadUserProjects = async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+      
+      if (error) throw error
+      setProjects(data || [])
+    } catch (error) {
+      console.error('Error loading projects:', error)
+    }
+  }
+
+  // Login with Google
+  const handleLogin = async () => {
+    try {
+      const user = await stack.signInWithGoogle()
+      setUser(user)
+      loadUserProjects(user.id)
+    } catch (error) {
+      console.error('Login error:', error)
+      alert('Login failed. Please try again.')
+    }
+  }
+
+  // Logout
+  const handleLogout = async () => {
+    try {
+      await stack.signOut()
+      setUser(null)
+      setProjects([])
+    } catch (error) {
+      console.error('Logout error:', error)
+    }
+  }
+
+  // Generate AI response
+  const handleGenerate = async () => {
+    if (!prompt.trim()) return
+    
+    setLoading(true)
+    setAiResponse('')
+    
+    try {
+      const response = await generateAIResponse(prompt)
+      setAiResponse(response)
+      
+      // Save to Supabase if user is logged in
+      if (user) {
+        const { error } = await supabase.from('projects').insert({
+          user_id: user.id,
+          prompt: prompt,
+          response: response,
+          created_at: new Date().toISOString()
+        })
+        
+        if (error) throw error
+        loadUserProjects(user.id) // Refresh projects list
+      }
+    } catch (error) {
+      console.error('Generation error:', error)
+      setAiResponse('Failed to generate response. Please try again.')
+    }
+    setLoading(false)
+  }
+
+  return (
+    <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto', fontFamily: 'Arial, sans-serif' }}>
+      <h1>🚀 Doveable AI</h1>
+      
+      {/* Auth Section */}
+      <div style={{ marginBottom: '30px', padding: '15px', border: '1px solid #ddd', borderRadius: '8px' }}>
+        {!user ? (
+          <div>
+            <p>Sign in to save your projects</p>
+            <button 
+              onClick={handleLogin} 
+              style={{ 
+                padding: '10px 20px', 
+                backgroundColor: '#4285f4', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              Sign in with Google
+            </button>
+          </div>
+        ) : (
+          <div>
+            <p>Welcome, {user.email}!</p>
+            <button 
+              onClick={handleLogout} 
+              style={{ 
+                padding: '8px 16px', 
+                backgroundColor: '#ff4444', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              Logout
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* AI Generator */}
+      <div style={{ marginBottom: '30px', padding: '15px', border: '1px solid #ddd', borderRadius: '8px' }}>
+        <h2>💬 Ask Doveable AI</h2>
+        <textarea
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder="What would you like to create today? Example: 'Create a landing page for a eco-friendly product'"
+          style={{ 
+            width: '100%', 
+            height: '100px', 
+            padding: '10px', 
+            border: '1px solid #ccc', 
+            borderRadius: '4px',
+            fontSize: '16px'
+          }}
+        />
+        <button 
+          onClick={handleGenerate} 
+          disabled={loading || !prompt.trim()}
+          style={{ 
+            padding: '10px 20px', 
+            marginTop: '10px', 
+            backgroundColor: loading ? '#ccc' : '#0070f3',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: loading ? 'not-allowed' : 'pointer'
+          }}
+        >
+          {loading ? 'Generating...' : 'Generate'}
+        </button>
+        
+        {aiResponse && (
+          <div style={{ marginTop: '20px', padding: '15px', background: '#f9f9f9', borderRadius: '4px', border: '1px solid #eee' }}>
+            <h3>🤖 AI Response:</h3>
+            <p style={{ whiteSpace: 'pre-wrap' }}>{aiResponse}</p>
+          </div>
+        )}
+      </div>
+
+      {/* User Projects */}
+      {user && projects.length > 0 && (
+        <div style={{ padding: '15px', border: '1px solid #ddd', borderRadius: '8px' }}>
+          <h2>📁 Your Projects ({projects.length})</h2>
+          {projects.map((project, index) => (
+            <div key={project.id || index} style={{ 
+              marginBottom: '15px', 
+              padding: '10px', 
+              border: '1px solid #eee', 
+              borderRadius: '4px' 
+            }}>
+              <p><strong>Prompt:</strong> {project.prompt}</p>
+              <p><strong>Response:</strong> {project.response.substring(0, 100)}...</p>
+              <small>{new Date(project.created_at).toLocaleDateString()}</small>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+        }
