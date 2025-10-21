@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Adorable",
+  title: "Doveable AI",
   description: "Open Source AI App Builder",
   manifest: "/manifest.json",
   // viewport: {

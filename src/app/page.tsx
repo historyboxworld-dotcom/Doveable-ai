@@ -39,7 +39,7 @@ export default function Home() {
           <Image
             className="dark:invert mx-2"
             src={LogoSvg}
-            alt="Adorable Logo"
+            alt="Doveable AI Logo"
             width={36}
             height={36}
           />
