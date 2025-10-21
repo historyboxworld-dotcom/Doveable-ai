@@ -10,63 +10,7 @@ export default function DoveableAI() {
   const [aiResponse, setAiResponse] = useState('')
   const [loading, setLoading] = useState(false)
 
-  // Check if user is already logged in
-  useEffect(() => {
-    checkUser()
-  }, [])
-
-  const checkUser = async () => {
-    try {
-      const currentUser = await stack.getCurrentUser()
-      if (currentUser) {
-        setUser(currentUser)
-        loadUserProjects(currentUser.id)
-      }
-    } catch (error) {
-      console.log('No user logged in')
-    }
-  }
-
-  // Load user projects from Supabase
-  const loadUserProjects = async (userId) => {
-    try {
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-      
-      if (error) throw error
-      setProjects(data || [])
-    } catch (error) {
-      console.error('Error loading projects:', error)
-    }
-  }
-
-  // Login with Google
-  const handleLogin = async () => {
-    try {
-      const user = await stack.signInWithGoogle()
-      setUser(user)
-      loadUserProjects(user.id)
-    } catch (error) {
-      console.error('Login error:', error)
-      alert('Login failed. Please try again.')
-    }
-  }
-
-  // Logout
-  const handleLogout = async () => {
-    try {
-      await stack.signOut()
-      setUser(null)
-      setProjects([])
-    } catch (error) {
-      console.error('Logout error:', error)
-    }
-  }
-
-  // Generate AI response
+  // Generate AI response (main functionality)
   const handleGenerate = async () => {
     if (!prompt.trim()) return
     
@@ -86,8 +30,16 @@ export default function DoveableAI() {
           created_at: new Date().toISOString()
         })
         
-        if (error) throw error
-        loadUserProjects(user.id) // Refresh projects list
+        if (!error) {
+          // Refresh projects list
+          const { data } = await supabase
+            .from('projects')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+          
+          setProjects(data || [])
+        }
       }
     } catch (error) {
       console.error('Generation error:', error)
@@ -96,15 +48,32 @@ export default function DoveableAI() {
     setLoading(false)
   }
 
+  // Simple login (demo mode)
+  const handleLogin = async () => {
+    try {
+      const user = await stack.signInWithGoogle()
+      setUser(user)
+    } catch (error) {
+      console.error('Login error:', error)
+    }
+  }
+
+  // Simple logout
+  const handleLogout = async () => {
+    await stack.signOut()
+    setUser(null)
+    setProjects([])
+  }
+
   return (
     <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto', fontFamily: 'Arial, sans-serif' }}>
       <h1>🚀 Doveable AI</h1>
       
-      {/* Auth Section */}
+      {/* Simple Auth Section */}
       <div style={{ marginBottom: '30px', padding: '15px', border: '1px solid #ddd', borderRadius: '8px' }}>
         {!user ? (
           <div>
-            <p>Sign in to save your projects</p>
+            <p>Click below to start demo session</p>
             <button 
               onClick={handleLogin} 
               style={{ 
@@ -116,12 +85,12 @@ export default function DoveableAI() {
                 cursor: 'pointer'
               }}
             >
-              Sign in with Google
+              Start Demo Session
             </button>
           </div>
         ) : (
           <div>
-            <p>Welcome, {user.email}!</p>
+            <p>Welcome, {user.email}! (Demo Mode)</p>
             <button 
               onClick={handleLogout} 
               style={{ 
@@ -199,4 +168,4 @@ export default function DoveableAI() {
       )}
     </div>
   )
-        }
+}
